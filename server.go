@@ -54,7 +54,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method Not Allowed", 405)
 		return
 	}
-	if r.Header.Get(s.conf.CircularPrevention) == "1" {
+	if r.Header.Get(s.conf.CircularPrevention) == "yes" {
 		http.Error(w, "Not Found", 404)
 		return
 	}
@@ -95,7 +95,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 				xff = clientAddr.IP.String()
 			}
 			req.Header.Set("X-Forwarded-For", xff)
-			req.Header.Set(s.conf.CircularPrevention, "1")
+			req.Header.Set(s.conf.CircularPrevention, "yes")
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				log.Println(err)
