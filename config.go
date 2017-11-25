@@ -49,7 +49,7 @@ func loadConfig(path string) (*config, error) {
 		conf.Listen = "[::1]:44046"
 	}
 	if conf.Path == "" {
-		conf.Path = "/.well-known/acme-challenge"
+		conf.Path = "/.well-known/acme-challenge/"
 	}
 	if conf.CircularPrevention == "" {
 		conf.CircularPrevention = "X-ACME-Dispatcher"
