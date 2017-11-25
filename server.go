@@ -69,15 +69,13 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Error", 500)
 		return
 	}
-	respChan := make(chan *http.Response)
+	respChan := make(chan *http.Response, 1)
+	errChan := make(chan *http.Response, 1)
 	var wg sync.WaitGroup
 	for _, upstream := range s.conf.Forward {
 		wg.Add(1)
 		go func(ctx context.Context, upstream, path string) {
-			defer func() {
-				recover()
-				wg.Done()
-			}()
+			defer wg.Done()
 			req, err := http.NewRequest(r.Method, upstream + path, nil)
 			if err != nil {
 				log.Println(err)
@@ -104,23 +102,35 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if resp.StatusCode < 500 && resp.StatusCode != 404 {
-				respChan <- resp
+				select {
+				case respChan <- resp:
+				default:
+				}
+			} else {
+				select {
+				case errChan <- resp:
+				default:
+				}
 			}
 		}(ctx, upstream, path)
 	}
 	go func() {
-		defer func() {
-			recover()
-		}()
 		wg.Wait()
-		close(respChan)
+		select {
+		case errResp := <-errChan:
+			select {
+			case respChan <- errResp:
+			default:
+			}
+		default:
+			close(respChan)
+		}
 	}()
 	resp, ok := <-respChan
 	if !ok {
 		http.Error(w, "Bad Gateway", 502)
 		return
 	}
-	close(respChan)
 	cancel()
 	respHeader := w.Header()
 	for k, v := range resp.Header {
@@ -128,5 +138,6 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 			respHeader[k] = v
 		}
 	}
+	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
 }
