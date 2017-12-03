@@ -19,8 +19,7 @@
 package main
 
 import (
-	"log"
-	"os"
+	"fmt"
 	"github.com/BurntSushi/toml"
 )
 
@@ -37,12 +36,8 @@ func loadConfig(path string) (*config, error) {
 	if err != nil {
 		return nil, err
 	}
-	undecoded := metaData.Undecoded()
 	for _, key := range metaData.Undecoded() {
-		log.Printf("unknown option %q\n", key.String())
-	}
-	if len(undecoded) != 0 {
-		os.Exit(1)
+		return nil, &configError { fmt.Sprintf("unknown option %q", key.String()) }
 	}
 
 	if conf.Listen == "" {
@@ -55,4 +50,12 @@ func loadConfig(path string) (*config, error) {
 		conf.CircularPrevention = "X-ACME-Dispatcher"
 	}
 	return conf, nil
+}
+
+type configError struct {
+	err		string
+}
+
+func (e *configError) Error() string {
+	return e.err
 }
