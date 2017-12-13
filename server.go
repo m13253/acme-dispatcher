@@ -72,6 +72,8 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 	respChan := make(chan *http.Response, 1)
 	errChan := make(chan *http.Response, 1)
 	var wg sync.WaitGroup
+	var respOnce sync.Once
+	var errOnce sync.Once
 	for _, upstream := range s.conf.Forward {
 		wg.Add(1)
 		go func(ctx context.Context, upstream, path string) {
@@ -102,29 +104,29 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if resp.StatusCode < 500 && resp.StatusCode != 404 {
-				select {
-				case respChan <- resp:
-				default:
-				}
+				respOnce.Do(func() {
+					respChan <- resp
+				})
 			} else {
-				select {
-				case errChan <- resp:
-				default:
-				}
+				errOnce.Do(func() {
+					errChan <- resp
+				})
 			}
 		}(ctx, upstream, path)
 	}
 	go func() {
 		wg.Wait()
 		select {
-		case errResp := <-errChan:
-			select {
-			case respChan <- errResp:
-			default:
-			}
+		case resp := <-errChan:
+			respOnce.Do(func() {
+				respChan <- resp
+			})
 		default:
-			close(respChan)
+			respOnce.Do(func() {
+				close(respChan)
+			})
 		}
+		println("Done")
 	}()
 	resp, ok := <-respChan
 	if !ok {
