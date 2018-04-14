@@ -98,6 +98,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 			}
 			req.Header.Set("X-Forwarded-For", xff)
 			req.Header.Set(s.conf.CircularPrevention, "yes")
+			req.Host = r.Header.Get("Host")
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				log.Println(err)
