@@ -19,8 +19,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -49,14 +51,23 @@ func (s *server) Start() error {
 }
 
 func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" && r.Method != "HEAD" {
-		w.Header().Set("Allow", "GET, HEAD")
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
 	if r.Header.Get(s.conf.CircularPrevention) == "yes" {
 		http.Error(w, "Not Found", 404)
 		return
+	}
+	const maxMemory = 32 << 20 // 32 MB
+	var bodyReader *bytes.Reader
+	if r.Body != nil {
+		body, err := ioutil.ReadAll(io.LimitReader(r.Body, maxMemory))
+		if err != nil {
+			http.Error(w, "Bad Request", 400)
+			return
+		}
+		if len(body) == maxMemory {
+			http.Error(w, "Request Entity Too Large", 413)
+			return
+		}
+		bodyReader = bytes.NewReader(body)
 	}
 	ctx, cancel := context.WithCancel(context.TODO())
 	path := r.URL.Path
@@ -78,7 +89,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func(ctx context.Context, upstream, path string) {
 			defer wg.Done()
-			req, err := http.NewRequest(r.Method, upstream + path, nil)
+			req, err := http.NewRequest(r.Method, upstream + path, bodyReader)
 			if err != nil {
 				log.Println(err)
 				return
@@ -98,7 +109,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 			}
 			req.Header.Set("X-Forwarded-For", xff)
 			req.Header.Set(s.conf.CircularPrevention, "yes")
-			req.Host = r.Header.Get("Host")
+			req.Host = r.Host
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				log.Println(err)
