@@ -69,7 +69,7 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 		}
 		bodyReader = bytes.NewReader(body)
 	}
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(context.Background())
 	path := r.URL.Path
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
