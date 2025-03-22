@@ -141,12 +141,12 @@ func (s *server) handlerFunc(w http.ResponseWriter, r *http.Request) {
 			resp.Body.Close()
 		}
 	}
-	defer firstError.Body.Close()
 	cancel()
 	if firstError == nil {
 		http.Error(w, "Bad Gateway", 502)
 		return
 	}
+	defer firstError.Body.Close()
 	respHeader := w.Header()
 	for k, v := range firstError.Header {
 		if k != "Accept-Encoding" && k != "Content-Encoding" && k != "Connection" && k != "Proxy-Connection" {
